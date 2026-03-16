@@ -64,24 +64,5 @@ func (l *LMStudioClient) Call(req entity.AgentRequest) (string, error) {
 		return "", fmt.Errorf("API Error %d: %s", resp.StatusCode, string(body))
 	}
 
-	return l.parseResponse(resp.Body)
-}
-
-func (l *LMStudioClient) parseResponse(body io.Reader) (string, error) {
-	var result struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-
-	if err := json.NewDecoder(body).Decode(&result); err != nil {
-		return "", fmt.Errorf("error decoding response: %w", err)
-	}
-
-	if len(result.Choices) > 0 {
-		return result.Choices[0].Message.Content, nil
-	}
-	return "", fmt.Errorf("empty model response")
+	return ParseChatResponse(resp.Body)
 }

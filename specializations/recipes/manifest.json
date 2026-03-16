@@ -1,0 +1,5 @@
+{
+  "id": "recipes",
+  "name": "Recipes",
+  "description": "Turn recipe videos or noisy recipe text into a formatted, validated written recipe (ingredients, steps, tips)."
+}

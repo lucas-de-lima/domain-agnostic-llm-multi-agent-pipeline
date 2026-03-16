@@ -1,3 +1,5 @@
+# DEPRECATED: Prefer run.sh or Make (make docker-run URL=...) on Linux/macOS/WSL.
+# This script is kept for Windows users without WSL; official support is run.sh + Makefile.
 function forge {
     param(
         [Parameter(Mandatory)]

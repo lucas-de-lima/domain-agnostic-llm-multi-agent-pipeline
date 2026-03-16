@@ -1,10 +1,13 @@
 package pipeline
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
+	"text/template"
 
 	"github.com/lucas-de-lima/domain-agnostic-llm-multi-agent-pipeline/internal/domain/entity"
 	"github.com/lucas-de-lima/domain-agnostic-llm-multi-agent-pipeline/internal/domain/gateway"
@@ -12,91 +15,72 @@ import (
 
 type DistillerUseCase struct {
 	llm        gateway.LLMProvider
-	downloader gateway.ContentDownloader
+	resolver   gateway.SourceResolver
 	sanitizer  gateway.TextSanitizer
+	spec       *entity.Specialization
 }
 
-func NewDistillerUseCase(llm gateway.LLMProvider, dl gateway.ContentDownloader, san gateway.TextSanitizer) *DistillerUseCase {
+func NewDistillerUseCase(llm gateway.LLMProvider, resolver gateway.SourceResolver, san gateway.TextSanitizer, spec *entity.Specialization) *DistillerUseCase {
 	return &DistillerUseCase{
-		llm:        llm,
-		downloader: dl,
-		sanitizer:  san,
+		llm:       llm,
+		resolver:  resolver,
+		sanitizer: san,
+		spec:      spec,
 	}
 }
 
-func (uc *DistillerUseCase) Run(sourceURL string) (string, error) {
-	// 1. Acquisition and cleaning
-	log.Println("📥 Starting download and sanitization...")
-	rawText, err := uc.downloader.Download(sourceURL)
+func (uc *DistillerUseCase) Run(ctx context.Context, sourceArg string) (string, error) {
+	log.Println("Starting fetch and sanitization...")
+	rawText, err := uc.resolver.FetchWithResolve(ctx, sourceArg)
 	if err != nil {
-		return "", fmt.Errorf("download error: %w", err)
+		return "", fmt.Errorf("fetch: %w", err)
 	}
 
 	cleanText, err := uc.sanitizer.Clean(rawText)
 	if err != nil {
-		return "", fmt.Errorf("sanitization error: %w", err)
+		return "", fmt.Errorf("sanitization: %w", err)
 	}
 
-	// Safety check to avoid processing empty or trivial content
 	if len(cleanText) < 50 {
 		return "", fmt.Errorf("extracted text too short or empty")
 	}
 
-	// 2. Agent 0: Context Architect (Router)
-	log.Println("🔮 Agent 0: Identifying context and specialists...")
+	log.Println("Agent 0: Identifying context and specialists...")
 	dynamicContext, err := uc.identifyContext(cleanText)
 	if err != nil {
-		return "", fmt.Errorf("Agent 0 failed: %w", err)
+		return "", fmt.Errorf("Agent 0: %w", err)
 	}
 
-	log.Printf("🎯 Context: %s | Level: %s\n", dynamicContext.MainSubject, dynamicContext.ComplexityLevel)
-	log.Printf("👥 Team Called: [1]%s [2]%s [3]%s\n",
-		dynamicContext.ExpertRole1, dynamicContext.ExpertRole2, dynamicContext.ExpertRole3)
+	log.Printf("Context: %s | Level: %s", dynamicContext.MainSubject, dynamicContext.ComplexityLevel)
+	log.Printf("Team: [1]%s [2]%s [3]%s", dynamicContext.ExpertRole1, dynamicContext.ExpertRole2, dynamicContext.ExpertRole3)
 
-	// 3. Agent 1: Structural Extractor (The Architect)
-	log.Printf("🕵️  Agent 1 (%s): Extracting structure...", dynamicContext.ExpertRole1)
+	log.Printf("Agent 1 (%s): Extracting structure...", dynamicContext.ExpertRole1)
 	extractionJSON, err := uc.runExtraction(cleanText, dynamicContext)
 	if err != nil {
-		return "", fmt.Errorf("Agent 1 failed: %w", err)
+		return "", fmt.Errorf("Agent 1: %w", err)
 	}
 
-	// 4. Agent 2: The Synthesizer (The Writer)
-	log.Printf("✍️  Agent 2 (%s): Writing draft...", dynamicContext.ExpertRole2)
+	log.Printf("Agent 2 (%s): Writing draft...", dynamicContext.ExpertRole2)
 	draftText, err := uc.runSynthesis(cleanText, extractionJSON, dynamicContext)
 	if err != nil {
-		return "", fmt.Errorf("Agent 2 failed: %w", err)
+		return "", fmt.Errorf("Agent 2: %w", err)
 	}
 
-	// 5. Agent 3: The Auditor (The Critic)
-	log.Printf("🧐 Agent 3 (%s): Validating and refining...", dynamicContext.ExpertRole3)
+	log.Printf("Agent 3 (%s): Validating and refining...", dynamicContext.ExpertRole3)
 	finalContent, err := uc.runAudit(draftText, cleanText, dynamicContext)
 	if err != nil {
-		return "", fmt.Errorf("Agent 3 failed: %w", err)
+		return "", fmt.Errorf("Agent 3: %w", err)
 	}
 
 	return finalContent, nil
 }
 
-// --- Métodos Privados de Orquestração ---
-
 func (uc *DistillerUseCase) identifyContext(input string) (*entity.DynamicContext, error) {
-	instruction := `
-	Analyze the provided text (input). Your goal is to classify the knowledge domain and determine the best expert roles to work on it.
-
-	Return ONLY a JSON with the following structure:
-	{
-		"main_subject": "The main subject (e.g., Quantum Physics, French Cuisine, DevOps)",
-		"complexity_level": "Technical level of the text (Beginner, Intermediate, Advanced)",
-		"expert_role_1": "Technical role name for data extraction (e.g., Theoretical Physicist, Saucier, SRE Engineer)",
-		"expert_role_2": "Role name for writing educational content (e.g., University Professor, Cookbook Editor, Tech Lead)",
-		"expert_role_3": "Role name for auditing mistakes (e.g., Scientific Reviewer, Food Critic, Security Auditor)",
-		"target_audience": "Ideal target audience for the summary"
-	}
-	`
+	instruction := uc.spec.ContextPrompt
 	resp, err := uc.llm.Call(entity.AgentRequest{
 		Role:        "Senior Content Classification Analyst",
 		Instruction: instruction,
-		InputData:   sampleText(input, 2000), // Send only the first 2k chars to save/accelerate classification
+		InputData:   sampleText(input, 2000),
 		Temperature: 0.1,
 	})
 	if err != nil {
@@ -105,27 +89,16 @@ func (uc *DistillerUseCase) identifyContext(input string) (*entity.DynamicContex
 
 	var ctx entity.DynamicContext
 	if err := json.Unmarshal([]byte(uc.cleanJSON(resp)), &ctx); err != nil {
-		return nil, fmt.Errorf("Agent 0 JSON parse error: %v | Raw: %s", err, resp)
+		return nil, fmt.Errorf("Agent 0 JSON parse: %v | Raw: %s", err, resp)
 	}
 	return &ctx, nil
 }
 
 func (uc *DistillerUseCase) runExtraction(input string, ctx *entity.DynamicContext) (string, error) {
-	instruction := fmt.Sprintf(`
-	You are a %s.
-	Your task is to analyze the raw text and extract the vital technical data about %s.
-	Ignore irrelevant conversation. Focus on logical structure, facts, numbers, ingredients or commands.
-
-	Return a generic JSON that represents the "truth" of this content.
-	Example generic structure (adapt to domain):
-	{
-		"key_concepts": [],
-		"procedural_steps": [],
-		"required_tools": [],
-		"critical_alerts": []
+	instruction, err := uc.renderPrompt(uc.spec.ExtractPrompt, ctx)
+	if err != nil {
+		return "", err
 	}
-	`, ctx.ExpertRole1, ctx.MainSubject)
-
 	return uc.llm.Call(entity.AgentRequest{
 		Role:        ctx.ExpertRole1,
 		Instruction: instruction,
@@ -136,50 +109,43 @@ func (uc *DistillerUseCase) runExtraction(input string, ctx *entity.DynamicConte
 
 func (uc *DistillerUseCase) runSynthesis(originalInput, extractionJSON string, ctx *entity.DynamicContext) (string, error) {
 	inputComposto := fmt.Sprintf("--- STRUCTURED DATA ---\n%s\n\n--- ORIGINAL TEXT ---\n%s", extractionJSON, originalInput)
-
-	instruction := fmt.Sprintf(`
-	You are a %s writing for %s.
-	Use the STRUCTURED DATA as the source of truth and the ORIGINAL TEXT for nuance.
-
-	Goal: Produce a final document in Markdown, professional and highly educational about %s.
-
-	Guidelines:
-	1. Correct incorrect or confusing jargon from the original text.
-	2. Organize into Title, Summary, Sections and Conclusion.
-	3. Use rich formatting (bold, lists).
-	`, ctx.ExpertRole2, ctx.TargetAudience, ctx.MainSubject)
-
+	instruction, err := uc.renderPrompt(uc.spec.SynthesizePrompt, ctx)
+	if err != nil {
+		return "", err
+	}
 	return uc.llm.Call(entity.AgentRequest{
 		Role:        ctx.ExpertRole2,
 		Instruction: instruction,
 		InputData:   inputComposto,
-		Temperature: 0.4, // Um pouco mais criativo para escrever bem
+		Temperature: 0.4,
 	})
 }
 
 func (uc *DistillerUseCase) runAudit(draft, originalInput string, ctx *entity.DynamicContext) (string, error) {
-	instruction := fmt.Sprintf(`
-	You are a %s. Your role is to ensure technical and logical integrity.
-	Review the Draft below.
-
-	Check:
-	1. If there are hallucinations (things not present in the original or technically impossible in %s).
-	2. If the language is appropriate for %s.
-	3. If the step-by-step makes logical/physical sense.
-
-	If it's perfect, return the original Draft.
-	If there are issues, rewrite the problematic section while keeping Markdown style.
-	`, ctx.ExpertRole3, ctx.MainSubject, ctx.TargetAudience)
-
+	instruction, err := uc.renderPrompt(uc.spec.AuditPrompt, ctx)
+	if err != nil {
+		return "", err
+	}
+	inputWithOriginal := fmt.Sprintf("--- DRAFT ---\n%s\n\n--- ORIGINAL SOURCE ---\n%s", draft, originalInput)
 	return uc.llm.Call(entity.AgentRequest{
 		Role:        ctx.ExpertRole3,
 		Instruction: instruction,
-		InputData:   draft,
+		InputData:   inputWithOriginal,
 		Temperature: 0.1,
 	})
 }
 
-// Helpers
+func (uc *DistillerUseCase) renderPrompt(tpl string, ctx *entity.DynamicContext) (string, error) {
+	t, err := template.New("").Parse(tpl)
+	if err != nil {
+		return "", fmt.Errorf("template: %w", err)
+	}
+	var b bytes.Buffer
+	if err := t.Execute(&b, ctx); err != nil {
+		return "", fmt.Errorf("template execute: %w", err)
+	}
+	return strings.TrimSpace(b.String()), nil
+}
 
 func (uc *DistillerUseCase) cleanJSON(raw string) string {
 	raw = strings.ReplaceAll(raw, "```json", "")

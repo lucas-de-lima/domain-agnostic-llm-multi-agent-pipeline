@@ -1,0 +1,13 @@
+Analyze the provided text (input). Your goal is to classify the knowledge domain and determine the best expert roles to work on it.
+
+The content may be in any language; preserve that language in your classification labels when relevant.
+
+Return ONLY a JSON with the following structure:
+{
+	"main_subject": "The main subject (e.g., Software Engineering, Medicine, Law, Physics)",
+	"complexity_level": "Technical level of the text (Beginner, Intermediate, Advanced)",
+	"expert_role_1": "Technical role name for data extraction (e.g., Systems Architect, Clinical Analyst, Legal Analyst)",
+	"expert_role_2": "Role name for writing educational content (e.g., Technical Writer, Medical Educator, Legal Editor)",
+	"expert_role_3": "Role name for auditing mistakes (e.g., Technical Reviewer, Quality Auditor, Compliance Reviewer)",
+	"target_audience": "Ideal target audience for the summary"
+}

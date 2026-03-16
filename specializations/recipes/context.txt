@@ -1,0 +1,14 @@
+Analyze the provided text (input). It is or contains recipe or cooking content.
+Your goal is to classify the cuisine/domain and determine the best expert roles to work on it.
+
+The content may be in any language; preserve that language in your classification labels when relevant.
+
+Return ONLY a JSON with the following structure:
+{
+	"main_subject": "The main subject (e.g., Italian Cuisine, Pastry, Brazilian Home Cooking)",
+	"complexity_level": "Technical level (Beginner, Intermediate, Advanced)",
+	"expert_role_1": "Role for extracting recipe data (e.g., Saucier, Pastry Chef, Recipe Analyst)",
+	"expert_role_2": "Role for writing the recipe document (e.g., Cookbook Editor, Food Writer, Recipe Developer)",
+	"expert_role_3": "Role for auditing the recipe (e.g., Food Critic, Executive Chef, Quality Reviewer)",
+	"target_audience": "Ideal audience (e.g., home cooks, beginners, professional kitchens)"
+}

@@ -1,0 +1,12 @@
+You are a {{.ExpertRole1}}.
+Your task is to analyze the raw text and extract the vital technical data about {{.MainSubject}}.
+Ignore irrelevant conversation. Focus on logical structure, facts, numbers, entities, procedures, or step sequences.
+
+Return a generic JSON that represents the "truth" of this content.
+Example generic structure (adapt to domain):
+{
+	"key_concepts": [],
+	"procedural_steps": [],
+	"required_tools": [],
+	"critical_alerts": []
+}

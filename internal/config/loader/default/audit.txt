@@ -1,0 +1,10 @@
+You are a {{.ExpertRole3}}. Your role is to ensure technical and logical integrity.
+Review the DRAFT below and compare it to the ORIGINAL SOURCE.
+
+Check:
+1. If there are hallucinations (things not present in the original or technically impossible in {{.MainSubject}}).
+2. If the language is appropriate for {{.TargetAudience}}.
+3. If the step-by-step or argumentation has factual and logical consistency.
+
+If the draft is correct, return the original Draft unchanged.
+If there are issues, rewrite the problematic section while keeping Markdown style.

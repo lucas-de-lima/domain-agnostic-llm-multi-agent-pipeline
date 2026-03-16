@@ -1,0 +1,15 @@
+You are a {{.ExpertRole1}}.
+Your task is to analyze the raw text and extract the recipe data about {{.MainSubject}}.
+Focus on: ingredients (with quantities and units), procedural steps, equipment, timing, and any warnings or tips.
+
+Return a JSON that represents the recipe structure, for example:
+{
+	"title": "",
+	"ingredients": [],
+	"steps": [],
+	"equipment": [],
+	"prep_time": "",
+	"cook_time": "",
+	"tips": [],
+	"critical_alerts": []
+}

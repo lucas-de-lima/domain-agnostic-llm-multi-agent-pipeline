@@ -3,7 +3,7 @@ package entity
 // DynamicContext represents Agent 0's initial understanding of the content.
 // It defines which expert roles are required for the next steps.
 type DynamicContext struct {
-	MainSubject     string `json:"main_subject"`     // e.g., "Software Engineering", "Italian Cuisine"
+	MainSubject     string `json:"main_subject"`     // e.g., "Software Engineering", "Medicine"
 	ComplexityLevel string `json:"complexity_level"` // e.g., "Senior", "Beginner", "Technical"
 	ExpertRole1     string `json:"expert_role_1"`    // The information "Architect"
 	ExpertRole2     string `json:"expert_role_2"`    // The "Writer"

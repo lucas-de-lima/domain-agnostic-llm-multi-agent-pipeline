@@ -1,0 +1,11 @@
+You are a {{.ExpertRole2}} writing for {{.TargetAudience}}.
+Use the STRUCTURED DATA as the source of truth and the ORIGINAL TEXT for nuance.
+
+Goal: Produce a clear, formatted recipe document in Markdown (title, summary, ingredients list, step-by-step instructions, tips, and conclusion).
+
+The content may be in any language; produce the output in the same language as the input (or in the requested output language if specified).
+
+Guidelines:
+1. Use consistent units and clear ingredient lists.
+2. Number the steps and keep them concise.
+3. Use rich formatting (bold for ingredients or key terms, lists).

@@ -6,15 +6,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // YtDlpClient implements gateway.ContentDownloader
 type YtDlpClient struct {
 	OutputDir string
+	// SubLangs: subtitle languages to try in order (e.g. []string{"pt", "en"}). If empty, defaults to ["en"].
+	SubLangs []string
 }
 
 func NewYtDlpClient(outputDir string) *YtDlpClient {
-	return &YtDlpClient{OutputDir: outputDir}
+	return &YtDlpClient{OutputDir: outputDir, SubLangs: []string{"en"}}
+}
+
+// NewYtDlpClientWithLangs creates a client with explicit subtitle language preference.
+func NewYtDlpClientWithLangs(outputDir string, langs []string) *YtDlpClient {
+	if len(langs) == 0 {
+		langs = []string{"en"}
+	}
+	return &YtDlpClient{OutputDir: outputDir, SubLangs: langs}
 }
 
 func (y *YtDlpClient) Download(url string) (string, error) {
@@ -27,11 +38,17 @@ func (y *YtDlpClient) Download(url string) (string, error) {
 	y.cleanOldFiles()
 
 	outputTemplate := filepath.Join(y.OutputDir, "raw_legenda.%(id)s")
+	subLangs := y.SubLangs
+	if len(subLangs) == 0 {
+		subLangs = []string{"en"}
+	}
+	langArg := strings.Join(subLangs, ",")
 
 	cmd := exec.Command("yt-dlp",
 		"--write-auto-subs",
+		"--write-subs",
 		"--skip-download",
-		"--sub-lang", "pt",
+		"--sub-lang", langArg,
 		"-o", outputTemplate,
 		url,
 	)
